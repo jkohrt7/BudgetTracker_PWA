@@ -1,6 +1,9 @@
 let transactions = [];
 let myChart;
 
+//Executes when page is loaded.
+//GETs all transactions and saves them in the global transactions variable
+//Then calls functions to populate total, table, chart.
 fetch("/api/transaction")
   .then(response => {
     return response.json();
@@ -14,8 +17,8 @@ fetch("/api/transaction")
     populateChart();
   });
 
+//Reduces transactions to a total value and displays it
 function populateTotal() {
-  // reduce transaction amounts to a single total value
   let total = transactions.reduce((total, t) => {
     return total + parseInt(t.value);
   }, 0);
@@ -24,6 +27,7 @@ function populateTotal() {
   totalEl.textContent = total;
 }
 
+//Populates table with every saved transaction model
 function populateTable() {
   let tbody = document.querySelector("#tbody");
   tbody.innerHTML = "";
@@ -40,6 +44,7 @@ function populateTable() {
   });
 }
 
+//Uses Chart.js to create a chart of the transactions
 function populateChart() {
   // copy array and reverse it
   let reversed = transactions.slice().reverse();
@@ -78,6 +83,8 @@ function populateChart() {
   });
 }
 
+//Uses the input fields to create a new transaction document, display it, and send it to the db.
+//If offline, the transaction is temporarily stored in indexeddb.
 function sendTransaction(isAdding) {
   let nameEl = document.querySelector("#t-name");
   let amountEl = document.querySelector("#t-amount");
@@ -143,6 +150,35 @@ function sendTransaction(isAdding) {
     amountEl.value = "";
   });
 }
+
+//Saves a transaction (THE FINANCIAL KIND NOT THE INDEXEDDB KIND) to indexedDB.
+function saveRecord(transaction) {
+  let request = window.indexedDB.open("transactions")
+  
+  //Creates schema when a db doesn't exist or is a newer version
+  request.onupgradeneeded = event => {
+    const db = event.target.result;
+    console.log("Onupgrade Called")
+
+    //'Table' for transactions
+    const transactionStorage = db.createObjectStore("transactionRecord", {autoIncrement: true}) //TODO: keypath
+  }
+
+  request.onerror = function(event) {
+    console.log("Something is wrong in index.js: " + event);
+  }
+
+  request.onsuccess = function(event) {
+    const db = event.target.result;
+    //Select correct ObjectStore, then add the transaction model to it.
+    const tx = db.transaction(["transactionRecord"], "readwrite");
+    const transactionStorage = tx.objectStore("transactionRecord");
+    transactionStorage.add(transaction)
+  };
+}
+
+//TODO: decide how the stuff in indexeddb will be retrieved.
+//Perhaps a "when back online" listener.
 
 document.querySelector("#add-btn").onclick = function() {
   sendTransaction(true);
