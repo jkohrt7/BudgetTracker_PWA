@@ -139,6 +139,9 @@ function sendTransaction(isAdding) {
       // clear form
       nameEl.value = "";
       amountEl.value = "";
+
+      //sync indexed and mongo dbs
+      syncRecords()
     }
   })
   .catch(err => {
@@ -165,7 +168,7 @@ function saveRecord(transaction) {
   }
 
   request.onerror = function(event) {
-    console.log("Something is wrong in index.js: " + event);
+    console.log("SaveRecord failed:  " + event);
   }
 
   request.onsuccess = function(event) {
@@ -177,8 +180,52 @@ function saveRecord(transaction) {
   };
 }
 
-//TODO: decide how the stuff in indexeddb will be retrieved.
-//Perhaps a "when back online" listener.
+//Adds any entries in Indexeddb to Mongodb and clears Indexeddb.
+function syncRecords() {
+  let request = window.indexedDB.open("transactions")
+  
+  //Creates schema when a db doesn't exist or is a newer version. TODO: This instance may be unnecceary
+  request.onupgradeneeded = event => {
+    const db = event.target.result;
+    console.log("Onupgrade Called")
+
+    //'Table' for transactions
+    const transactionStorage = db.createObjectStore("transactionRecord", {autoIncrement: true}) //TODO: keypath
+  }
+
+  //If the request to open the indexeddb succeeds, try to POST data to mongo
+  request.onsuccess = event => {
+    const db = event.target.result;
+    const tx = db.transaction(["transactionRecord"], "readwrite");
+    const transactionStorage = tx.objectStore("transactionRecord");
+
+    //Get all the transaction values, add them to the db, and clear indexeddb
+    const transactionValues = transactionStorage.getAll();
+
+    transactionValues.onsuccess = function(event) {
+      console.log(transactionValues.result);
+      //Add everything to mongodb
+      fetch("/api/transaction/bulk", {
+        method: "POST",
+        body: JSON.stringify(transactionValues.result),
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "Content-Type": "application/json"
+        }
+      })
+      transactionValues.clear();
+      console.log("Added to mongodb and cleared transactions!");
+    }
+
+    transactionValues.onerror = event => {
+      console.log("Moving indexeddb to mongo failed!");
+    }
+  }
+
+  request.onerror = function(event) {
+    console.log("syncRecord failed!");
+  }
+}
 
 document.querySelector("#add-btn").onclick = function() {
   sendTransaction(true);
