@@ -141,7 +141,7 @@ function sendTransaction(isAdding) {
       amountEl.value = "";
 
       //sync indexed and mongo dbs
-      syncRecords()
+      syncRecords();
     }
   })
   .catch(err => {
@@ -203,18 +203,25 @@ function syncRecords() {
     const transactionValues = transactionStorage.getAll();
 
     transactionValues.onsuccess = function(event) {
-      console.log(transactionValues.result);
-      //Add everything to mongodb
-      fetch("/api/transaction/bulk", {
-        method: "POST",
-        body: JSON.stringify(transactionValues.result),
-        headers: {
-          Accept: "application/json, text/plain, */*",
-          "Content-Type": "application/json"
-        }
-      })
-      transactionValues.clear();
-      console.log("Added to mongodb and cleared transactions!");
+      if(transactionValues.result.length > 0){
+        //Add everything to mongodb
+        fetch("/api/transaction/bulk", {
+          method: "POST",
+          body: JSON.stringify(transactionValues.result),
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "Content-Type": "application/json"
+          }
+        })
+        //clear indexeddb
+        transactionStorage.clear();
+
+        //update visuals
+        populateChart();
+        populateTable();
+        populateTotal();
+        console.log("Added to mongodb and cleared transactions!");
+      }
     }
 
     transactionValues.onerror = event => {
